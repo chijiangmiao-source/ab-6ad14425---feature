@@ -11,5 +11,7 @@ __pycache__/
 .npm-cache/
 .pnpm-store/
 .yarn-cache/
+verify/.tmp-data/
+data/
 *.pyc
 *.pyo

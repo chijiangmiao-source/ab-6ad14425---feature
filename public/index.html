@@ -17,14 +17,47 @@
 
   <main>
     <section class="card">
-      <h2>服务端批准稿 <span class="tag">真实接口</span></h2>
+      <h2>服务端批准稿 <span class="tag">真实接口 · 字符标识序列</span></h2>
       <div class="row">
         <label>草案标识
           <input id="doc-id" type="text" value="main" autocomplete="off" />
         </label>
         <span class="rev">当前修订：<strong id="approved-rev">—</strong></span>
+        <span class="rev">本次服务启动：<code id="boot-id">—</code></span>
       </div>
       <pre id="approved-text" class="doc approved">（尚未从服务端读取）</pre>
+      <p class="hint">
+        在上面的已批准全文上操作：把光标放在两字符之间后点“记录插入点”；
+        拖选一段连续文字后点“记录删除片段”。页面只保存选择所见修订与两端字符锚点，
+        补传成功后仅展示服务端确认的全文、修订与实际落点。
+      </p>
+      <div class="row">
+        <button id="btn-pick-insert" type="button">记录插入点</button>
+        <button id="btn-pick-delete" type="button">记录删除片段</button>
+        <span id="pick-msg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>受保护补传 <span class="tag tag-local">锚点定位 · 原子确认</span></h2>
+      <div class="row"><span class="rev">选择所见修订：<strong id="sel-rev">—</strong></span>
+        <span class="rev">补丁标识：<code id="sel-pid">—</code></span></div>
+      <div class="row"><span class="rev">类型：<strong id="sel-kind">—</strong></span></div>
+      <div class="row"><span class="rev">左端锚点：<code id="sel-left">—</code></span>
+        <span class="rev">右端锚点：<code id="sel-right">—</code></span>
+        <span class="rev" id="sel-posline">当前序列位置：<strong id="sel-pos">—</strong></span>
+      </div>
+      <div class="row"><span class="rev">所选内容：</span><code id="sel-text">—</code></div>
+      <div class="row">
+        <label id="wrap-protected-text">插入文本
+          <input id="protected-text" type="text" autocomplete="off" placeholder="受保护插入要补传的文本" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btn-new-pid" type="button">新补丁标识</button>
+        <button id="btn-protected-submit" type="button" class="primary">受保护补传</button>
+        <span id="protected-msg" class="msg"></span>
+      </div>
     </section>
 
     <section class="card">
@@ -48,7 +81,7 @@
     </section>
 
     <section class="card">
-      <h2>提交补丁</h2>
+      <h2>旧式无锚补丁（历史接口兼容） <span class="tag tag-local">pos / baseRevision</span></h2>
       <div class="grid">
         <label>补丁标识
           <input id="patch-id" type="text" autocomplete="off" />
@@ -74,20 +107,20 @@
       </div>
       <div class="row">
         <button id="btn-new-id" type="button">新补丁标识</button>
-        <button id="btn-submit" type="button" class="primary">提交补丁</button>
+        <button id="btn-submit" type="button">提交旧式补丁</button>
         <span id="submit-msg" class="msg"></span>
       </div>
     </section>
 
     <section class="card">
-      <h2>最近确认结果 <span class="tag">服务端确认</span></h2>
+      <h2>最近确认结果 <span class="tag">服务端确认 · 接口恢复</span></h2>
       <div class="row">
         <span class="rev">确认修订：<strong id="confirmed-rev">—</strong></span>
         <span class="rev">实际落点：<strong id="confirmed-landing">—</strong></span>
         <span id="confirmed-dup" class="pill pill-warn" hidden>幂等重放 · 未新增修订</span>
       </div>
       <div class="row"><span class="rev">规范化操作：</span><code id="confirmed-ops">—</code></div>
-      <pre id="confirmed-text" class="doc confirmed">（尚无确认结果）</pre>
+      <pre id="confirmed-text" class="doc confirmed">（尚无确认结果，刷新后仅从接口恢复最近结论）</pre>
     </section>
   </main>
 

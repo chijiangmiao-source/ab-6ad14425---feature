@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 1024 * 1024;
+// 进程内重启约定的退出码：守护脚本（scripts/serve.sh）识别后重新拉起进程。
+const RESTART_EXIT_CODE = 42;
+
+// 本次进程启动标识：验收据此确认“重启恢复”检查确实跨了一次真实进程重启。
+const bootId = randomUUID();
 
 const store = new Store(path.join(DATA_DIR, 'state.json'));
 store.load();
@@ -83,7 +89,15 @@ const server = http.createServer(async (req, res) => {
   try {
     // 健康状态
     if (req.method === 'GET' && url.pathname === '/api/health') {
-      sendJson(res, 200, { status: 'ok', uptime: process.uptime() });
+      sendJson(res, 200, { status: 'ok', uptime: process.uptime(), bootId });
+      return;
+    }
+
+    // 维护/验收接口：请求进程内重启。响应送达后以约定退出码退出，
+    // 由守护脚本重新拉起进程，从状态文件恢复全部文档（含标识序列）。
+    if (req.method === 'POST' && url.pathname === '/api/admin/restart') {
+      sendJson(res, 202, { status: 'restarting', bootId });
+      setTimeout(() => process.exit(RESTART_EXIT_CODE), 100);
       return;
     }
 
@@ -123,7 +137,15 @@ const server = http.createServer(async (req, res) => {
           sendError(res, 404, 'not-found', `草案 ${id} 不存在`);
           return;
         }
-        sendJson(res, 200, { id: doc.id, revision: doc.revision, text: doc.text });
+        // seq 为批准文本的稳定字符标识序列（[{id,ch}]），终端据此选择锚点；
+        // lastConfirmed 为最近一条新确认结论，刷新或重启后只从接口恢复锚点与结论。
+        sendJson(res, 200, {
+          id: doc.id,
+          revision: doc.revision,
+          text: doc.text,
+          seq: doc.seq,
+          lastConfirmed: doc.lastConfirmed(),
+        });
         return;
       }
       if (parts.length === 4 && parts[3] === 'patches' && req.method === 'POST') {
