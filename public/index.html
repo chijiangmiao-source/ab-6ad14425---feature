@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>低温联锁规程 · 补传确认终端</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>低温联锁规程 · 补传确认终端</h1>
+    <div class="status">
+      <span id="health" class="pill pill-warn">服务状态未知</span>
+      <button id="btn-refresh" type="button">刷新批准稿</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>服务端批准稿 <span class="tag">真实接口</span></h2>
+      <div class="row">
+        <label>草案标识
+          <input id="doc-id" type="text" value="main" autocomplete="off" />
+        </label>
+        <span class="rev">当前修订：<strong id="approved-rev">—</strong></span>
+      </div>
+      <pre id="approved-text" class="doc approved">（尚未从服务端读取）</pre>
+    </section>
+
+    <section class="card">
+      <h2>建立草案</h2>
+      <textarea id="initial-text" rows="3" placeholder="输入规程初始文本，建立修订 0"></textarea>
+      <div class="row">
+        <button id="btn-create" type="button">建立草案</button>
+        <span id="create-msg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>本终端离线草案 <span class="tag tag-local">未批准 · 仅存本机</span></h2>
+      <textarea id="draft-text" rows="5" placeholder="离线编辑的草案文本（本地内容，不视为已批准）"></textarea>
+      <div class="row">
+        <span class="rev">本终端基准修订：<strong id="base-rev-view">—</strong></span>
+        <button id="btn-load-approved" type="button">载入批准稿为草案</button>
+        <button id="btn-save-local" type="button">保存草案到本机</button>
+        <span id="draft-msg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>提交补丁</h2>
+      <div class="grid">
+        <label>补丁标识
+          <input id="patch-id" type="text" autocomplete="off" />
+        </label>
+        <label>基准修订
+          <input id="patch-base" type="number" min="0" step="1" />
+        </label>
+        <label>操作
+          <select id="patch-op">
+            <option value="insert">插入</option>
+            <option value="delete">删除</option>
+          </select>
+        </label>
+        <label>位置 pos
+          <input id="patch-pos" type="number" min="0" step="1" value="0" />
+        </label>
+        <label id="wrap-patch-text">插入文本
+          <input id="patch-text" type="text" autocomplete="off" />
+        </label>
+        <label id="wrap-patch-len" hidden>删除长度
+          <input id="patch-len" type="number" min="1" step="1" value="1" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btn-new-id" type="button">新补丁标识</button>
+        <button id="btn-submit" type="button" class="primary">提交补丁</button>
+        <span id="submit-msg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>最近确认结果 <span class="tag">服务端确认</span></h2>
+      <div class="row">
+        <span class="rev">确认修订：<strong id="confirmed-rev">—</strong></span>
+        <span class="rev">实际落点：<strong id="confirmed-landing">—</strong></span>
+        <span id="confirmed-dup" class="pill pill-warn" hidden>幂等重放 · 未新增修订</span>
+      </div>
+      <div class="row"><span class="rev">规范化操作：</span><code id="confirmed-ops">—</code></div>
+      <pre id="confirmed-text" class="doc confirmed">（尚无确认结果）</pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

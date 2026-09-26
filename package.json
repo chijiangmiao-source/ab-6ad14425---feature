@@ -1,0 +1,14 @@
+{
+  "name": "cryo-interlock-ot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "低温联锁规程离线补传协同确认服务（OT 转换 + 幂等确认 + 原子持久化）",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

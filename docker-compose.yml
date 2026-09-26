@@ -1,0 +1,37 @@
+name: cryo-interlock
+
+services:
+  app:
+    build: .
+    image: cryo-interlock-app
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+    ports:
+      # 宿主机端口可配置：HOST_PORT=9000 docker compose up
+      - "${HOST_PORT:-8080}:8080"
+    volumes:
+      - app-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 3s
+    restart: unless-stopped
+
+  verify:
+    image: node:20-alpine
+    depends_on:
+      app:
+        condition: service_healthy
+    working_dir: /src
+    volumes:
+      - .:/src:ro
+    environment:
+      APP_URL: http://app:8080
+    command: ["sh", "verify/run.sh"]
+
+volumes:
+  app-data:
