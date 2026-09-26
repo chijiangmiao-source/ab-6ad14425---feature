@@ -24,7 +24,9 @@
         </label>
         <span class="rev">当前修订：<strong id="approved-rev">—</strong></span>
       </div>
-      <pre id="approved-text" class="doc approved">（尚未从服务端读取）</pre>
+      <textarea id="approved-text" class="doc approved" rows="6" readonly
+        placeholder="（尚未从服务端读取）"></textarea>
+      <p class="hint">在批准稿中放置光标或拖选片段，即可在下方注册受保护选择。</p>
     </section>
 
     <section class="card">
@@ -77,6 +79,41 @@
         <button id="btn-submit" type="button" class="primary">提交补丁</button>
         <span id="submit-msg" class="msg"></span>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>受保护补传 <span class="tag">锚点保护</span></h2>
+      <p class="hint">在上方批准稿中放置光标（插入点）或拖选片段（删除），点击对应按钮把选择注册到服务端并签发两端锚点。</p>
+      <div class="row">
+        <button id="btn-sel-insert" type="button">选定插入点</button>
+        <button id="btn-sel-delete" type="button">选定删除片段</button>
+        <button id="btn-prot-new" type="button">新选择标识</button>
+      </div>
+      <div class="grid">
+        <label>选择标识
+          <input id="prot-id" type="text" autocomplete="off" />
+        </label>
+        <span class="rev">所见修订：<strong id="prot-base">—</strong></span>
+        <span class="rev">类型：<strong id="prot-kind">—</strong></span>
+        <span class="rev">状态：<strong id="prot-status">—</strong></span>
+        <span class="rev">左锚点：<code id="prot-left">—</code></span>
+        <span class="rev">右锚点：<code id="prot-right">—</code></span>
+      </div>
+      <div class="row" id="prot-target-wrap" hidden>
+        <span class="rev">删除目标（<strong id="prot-target-len">0</strong> 字符）：</span>
+        <code id="prot-target"></code>
+      </div>
+      <div class="row" id="prot-text-wrap" hidden>
+        <label class="grow">插入文本
+          <input id="prot-text" type="text" autocomplete="off" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btn-prot-submit" type="button" class="primary">提交受保护补传</button>
+        <span id="prot-msg" class="msg"></span>
+      </div>
+      <div class="row"><span class="rev">最近结论：</span><span id="prot-conclusion" class="rev">—</span></div>
+      <pre id="prot-confirmed-text" class="doc confirmed" hidden></pre>
     </section>
 
     <section class="card">

@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Document } from './document.js';
+import { Document, PatchError } from './document.js';
 
 // 文档集合 + 原子持久化：每次确认后整体写入临时文件再 rename，
-// 保证补丁的规范化结果与新修订原子落盘；重启后从状态文件恢复全部历史。
+// 保证补丁的规范化结果、受保护选择的锚点与结论随新修订原子落盘；
+// 重启后从状态文件恢复全部历史、标识序列与选择记录。
 export class Store {
   constructor(file) {
     this.file = file;
@@ -59,5 +60,30 @@ export class Store {
     const result = doc.confirm(payload);
     if (!result.duplicate) this.save(); // 幂等重放不改变状态，无需落盘
     return result;
+  }
+
+  // 注册受保护选择；文档不存在返回 undefined。
+  createProtection(id, payload) {
+    const doc = this.documents.get(id);
+    if (!doc) return undefined;
+    const record = doc.registerProtection(payload);
+    if (!record.duplicate) this.save();
+    return record;
+  }
+
+  // 确认受保护补传；文档不存在返回 undefined，选择不存在返回 null。
+  // 状态性拒绝的结论已写入记录，同样随状态原子落盘。
+  confirmProtection(id, selId, payload) {
+    const doc = this.documents.get(id);
+    if (!doc) return undefined;
+    if (!doc.getProtection(selId)) return null;
+    try {
+      const result = doc.confirmProtection(selId, payload);
+      if (!result.duplicate) this.save();
+      return result;
+    } catch (err) {
+      if (err instanceof PatchError && err.recorded) this.save();
+      throw err;
+    }
   }
 }

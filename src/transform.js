@@ -65,11 +65,15 @@ export function transformOps(ops, otherOps) {
   return current;
 }
 
+// 应用次序：按位置降序（保证坐标有效）。文本与稳定字符标识序列共用此次序。
+export function orderedOps(ops) {
+  return [...ops].sort((a, b) => b.pos - a.pos);
+}
+
 // 将规范化操作序列应用到文本上（按位置降序，保证坐标有效）。
 export function applyOps(text, ops) {
-  const ordered = [...ops].sort((a, b) => b.pos - a.pos);
   let out = text;
-  for (const op of ordered) {
+  for (const op of orderedOps(ops)) {
     if (op.type === 'insert') {
       out = out.slice(0, op.pos) + op.text + out.slice(op.pos);
     } else {

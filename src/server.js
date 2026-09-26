@@ -114,7 +114,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // /api/documents/:id[/patches]
+    // /api/documents/:id[/patches|/protected...]
     if (parts[0] === 'api' && parts[1] === 'documents' && parts.length >= 3) {
       const id = decodeURIComponent(parts[2]);
       if (parts.length === 3 && req.method === 'GET') {
@@ -123,7 +123,8 @@ const server = http.createServer(async (req, res) => {
           sendError(res, 404, 'not-found', `草案 ${id} 不存在`);
           return;
         }
-        sendJson(res, 200, { id: doc.id, revision: doc.revision, text: doc.text });
+        // charIds：与全文逐字符对齐的稳定字符标识，供终端选定插入点/删除片段。
+        sendJson(res, 200, { id: doc.id, revision: doc.revision, text: doc.text, charIds: doc.aliveCharIds() });
         return;
       }
       if (parts.length === 4 && parts[3] === 'patches' && req.method === 'POST') {
@@ -135,6 +136,45 @@ const server = http.createServer(async (req, res) => {
         }
         sendJson(res, 200, result);
         return;
+      }
+
+      // 受保护补传：选择注册 / 列表 / 详情 / 确认
+      if (parts.length >= 4 && parts[3] === 'protected') {
+        const doc = store.get(id);
+        if (!doc) {
+          sendError(res, 404, 'not-found', `草案 ${id} 不存在`);
+          return;
+        }
+        if (parts.length === 4 && req.method === 'POST') {
+          const body = await readJson(req);
+          const record = store.createProtection(id, body);
+          sendJson(res, record.duplicate ? 200 : 201, record);
+          return;
+        }
+        if (parts.length === 4 && req.method === 'GET') {
+          sendJson(res, 200, { selections: doc.listProtections() });
+          return;
+        }
+        const selId = decodeURIComponent(parts[4] ?? '');
+        if (parts.length === 5 && req.method === 'GET') {
+          const record = doc.getProtection(selId);
+          if (!record) {
+            sendError(res, 404, 'not-found', `选择 ${selId} 不存在`);
+            return;
+          }
+          sendJson(res, 200, record);
+          return;
+        }
+        if (parts.length === 6 && parts[5] === 'confirm' && req.method === 'POST') {
+          const body = await readJson(req);
+          const result = store.confirmProtection(id, selId, body);
+          if (result === undefined || result === null) {
+            sendError(res, 404, 'not-found', `选择 ${selId} 不存在`);
+            return;
+          }
+          sendJson(res, 200, result);
+          return;
+        }
       }
     }
 

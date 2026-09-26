@@ -29,8 +29,11 @@ services:
     working_dir: /src
     volumes:
       - .:/src:ro
+      # 验收专用：供“重启恢复”检查经 Docker Engine API 实际重启 app 容器
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       APP_URL: http://app:8080
+      RESTART_MODE: docker
     command: ["sh", "verify/run.sh"]
 
 volumes:

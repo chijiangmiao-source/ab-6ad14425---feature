@@ -1,6 +1,7 @@
 /* 低温联锁规程补传确认终端。
- * 本机仅保存：草案标识、本终端基准修订、离线草案文本、最近确认结果。
- * 已批准内容一律以服务端真实接口为准，本地旧草案绝不当作批准稿展示。 */
+ * 本机仅保存：草案标识、本终端基准修订、离线草案文本、最近旧式确认结果、当前受保护选择标识。
+ * 已批准内容一律以服务端真实接口为准，本地旧草案绝不当作批准稿展示；
+ * 受保护选择的锚点与最近结论，刷新或服务重启后只从接口恢复。 */
 'use strict';
 
 const $ = (id) => document.getElementById(id);
@@ -23,7 +24,8 @@ const state = {
   docId: store.get('docId', 'main'),
   baseRevision: store.get('baseRevision', null),
   lastConfirmed: store.get('lastConfirmed', null),
-  approved: null,
+  approved: null, // { id, revision, text, charIds }，一律来自真实接口
+  protection: null, // 服务端受保护选择记录（含锚点与最近结论）
 };
 
 async function api(path, options = {}) {
@@ -40,21 +42,21 @@ function setMsg(el, text, kind) {
   el.className = `msg ${kind || ''}`;
 }
 
-function newPatchId() {
+function newId(prefix) {
   const rand =
     globalThis.crypto && crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `patch-${rand}`;
+  return `${prefix}-${rand}`;
 }
 
 function renderApproved() {
   if (state.approved) {
     $('approved-rev').textContent = String(state.approved.revision);
-    $('approved-text').textContent = state.approved.text;
+    $('approved-text').value = state.approved.text;
   } else {
     $('approved-rev').textContent = '—';
-    $('approved-text').textContent = '（服务端尚无该草案，请先建立草案）';
+    $('approved-text').value = '（服务端尚无该草案，请先建立草案）';
   }
 }
 
@@ -170,6 +172,189 @@ async function submitPatch() {
   }
 }
 
+// ---- 受保护补传 ----
+
+function renderProtection() {
+  const rec = state.protection;
+  const confirmedPre = $('prot-confirmed-text');
+  if (!rec) {
+    $('prot-base').textContent = '—';
+    $('prot-kind').textContent = '—';
+    $('prot-status').textContent = '—';
+    $('prot-left').textContent = '—';
+    $('prot-right').textContent = '—';
+    $('prot-target-wrap').hidden = true;
+    $('prot-text-wrap').hidden = true;
+    $('prot-conclusion').textContent = '—';
+    confirmedPre.hidden = true;
+    return;
+  }
+  $('prot-id').value = rec.id;
+  $('prot-base').textContent = String(rec.baseRevision);
+  $('prot-kind').textContent = rec.kind === 'insert' ? '插入' : '删除';
+  $('prot-status').textContent =
+    { pending: '待确认', accepted: '已确认', rejected: '已拒绝' }[rec.status] || rec.status;
+  $('prot-left').textContent = rec.leftId === null ? '（文首）' : rec.leftId;
+  $('prot-right').textContent = rec.rightId === null ? '（文末）' : rec.rightId;
+  if (rec.kind === 'delete') {
+    $('prot-target-wrap').hidden = false;
+    $('prot-text-wrap').hidden = true;
+    $('prot-target').textContent = rec.expectedText;
+    $('prot-target-len').textContent = String(rec.targetIds.length);
+  } else {
+    $('prot-target-wrap').hidden = true;
+    $('prot-text-wrap').hidden = false;
+  }
+  const c = rec.conclusion;
+  if (c && c.status === 'accepted') {
+    // 补传成功：只显示服务端确认的全文、修订与实际落点。
+    $('prot-conclusion').textContent =
+      `已确认：修订 ${c.revision}，实际落点 ${c.landing === null ? '（空操作）' : c.landing}`;
+    confirmedPre.textContent = c.text;
+    confirmedPre.hidden = false;
+  } else if (c && c.status === 'rejected') {
+    $('prot-conclusion').textContent =
+      `已拒绝：${c.code} — ${c.message}（评估于修订 ${c.revision}，文本与修订未变）`;
+    confirmedPre.hidden = true;
+  } else {
+    $('prot-conclusion').textContent = '尚无结论（待确认）';
+    confirmedPre.hidden = true;
+  }
+}
+
+async function registerProtection(payload) {
+  const msg = $('prot-msg');
+  const { status, body } = await api(
+    `/api/documents/${encodeURIComponent(state.docId)}/protected`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+  if (status === 201 || status === 200) {
+    state.protection = body;
+    store.set('protectedSelId', body.id);
+    renderProtection();
+    setMsg(
+      msg,
+      status === 201
+        ? `选择已注册（所见修订 ${body.baseRevision}），服务端已签发两端锚点`
+        : '该选择已注册过，已复现服务端记录',
+      'ok',
+    );
+  } else {
+    setMsg(msg, `注册被拒绝（${status}）：${body && body.message ? body.message : '未知错误'}`, 'err');
+  }
+}
+
+function ensureApproved() {
+  if (state.approved) return true;
+  setMsg($('prot-msg'), '批准稿尚未载入，请先刷新批准稿', 'err');
+  return false;
+}
+
+function chooseInsertPoint() {
+  if (!ensureApproved()) return;
+  const ta = $('approved-text');
+  if (ta.selectionStart !== ta.selectionEnd) {
+    setMsg($('prot-msg'), '选定插入点时请不要拖选，只放置光标', 'err');
+    return;
+  }
+  const pos = ta.selectionStart;
+  const { revision, charIds } = state.approved;
+  registerProtection({
+    id: $('prot-id').value.trim(),
+    baseRevision: revision,
+    kind: 'insert',
+    pos,
+    leftId: pos > 0 ? charIds[pos - 1] : null,
+    rightId: pos < charIds.length ? charIds[pos] : null,
+  });
+}
+
+function chooseDeleteRange() {
+  if (!ensureApproved()) return;
+  const ta = $('approved-text');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  if (start === end) {
+    setMsg($('prot-msg'), '请先在批准稿中拖选要删除的片段', 'err');
+    return;
+  }
+  const { revision, text, charIds } = state.approved;
+  registerProtection({
+    id: $('prot-id').value.trim(),
+    baseRevision: revision,
+    kind: 'delete',
+    start,
+    end,
+    expectedText: text.slice(start, end),
+    targetIds: charIds.slice(start, end),
+    leftId: start > 0 ? charIds[start - 1] : null,
+    rightId: end < charIds.length ? charIds[end] : null,
+  });
+}
+
+async function submitProtected() {
+  const msg = $('prot-msg');
+  const rec = state.protection;
+  if (!rec) {
+    setMsg(msg, '请先选定插入点或删除片段', 'err');
+    return;
+  }
+  const payload = { patchId: `prot-${rec.id}`, leftId: rec.leftId, rightId: rec.rightId };
+  if (rec.kind === 'insert') {
+    const text = $('prot-text').value;
+    if (!text) {
+      setMsg(msg, '请输入要插入的文本', 'err');
+      return;
+    }
+    payload.text = text;
+  } else {
+    payload.targetIds = rec.targetIds;
+  }
+  const { status, body } = await api(
+    `/api/documents/${encodeURIComponent(state.docId)}/protected/${encodeURIComponent(rec.id)}/confirm`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+  if (status === 200) {
+    await recoverProtection(rec.id);
+    setMsg(
+      msg,
+      body.duplicate ? '重复提交，已复现首次确认结果' : `受保护补传已确认为修订 ${body.revision}`,
+      'ok',
+    );
+  } else {
+    await recoverProtection(rec.id); // 拒绝结论以服务端记录为准
+    setMsg(
+      msg,
+      `已拒绝（${status}）：${body && body.message ? body.message : '未知错误'}；规程文本与修订未变`,
+      'err',
+    );
+  }
+  await refreshApproved();
+}
+
+async function recoverProtection(selId) {
+  const { status, body } = await api(
+    `/api/documents/${encodeURIComponent(state.docId)}/protected/${encodeURIComponent(selId)}`,
+  );
+  if (status === 200) {
+    state.protection = body;
+    store.set('protectedSelId', body.id);
+    renderProtection();
+  }
+}
+
+// 刷新或服务重启后：只从接口恢复锚点与最近结论。
+async function recoverLatestProtection() {
+  const { status, body } = await api(
+    `/api/documents/${encodeURIComponent(state.docId)}/protected`,
+  );
+  if (status !== 200 || !Array.isArray(body.selections) || body.selections.length === 0) return;
+  const savedId = store.get('protectedSelId', null);
+  const chosen =
+    body.selections.find((s) => s.id === savedId) || body.selections[body.selections.length - 1];
+  await recoverProtection(chosen.id);
+}
+
 function bindEvents() {
   $('btn-refresh').addEventListener('click', refreshApproved);
   $('btn-create').addEventListener('click', createDraft);
@@ -177,13 +362,24 @@ function bindEvents() {
   $('btn-save-local').addEventListener('click', saveLocalDraft);
   $('btn-submit').addEventListener('click', submitPatch);
   $('btn-new-id').addEventListener('click', () => {
-    $('patch-id').value = newPatchId();
+    $('patch-id').value = newId('patch');
+  });
+  $('btn-sel-insert').addEventListener('click', chooseInsertPoint);
+  $('btn-sel-delete').addEventListener('click', chooseDeleteRange);
+  $('btn-prot-submit').addEventListener('click', submitProtected);
+  $('btn-prot-new').addEventListener('click', () => {
+    $('prot-id').value = newId('sel');
+    state.protection = null;
+    renderProtection();
   });
   $('doc-id').addEventListener('change', () => {
     state.docId = $('doc-id').value.trim() || 'main';
     $('doc-id').value = state.docId;
     store.set('docId', state.docId);
+    state.protection = null;
+    renderProtection();
     refreshApproved();
+    recoverLatestProtection();
   });
   $('patch-op').addEventListener('change', () => {
     const isInsert = $('patch-op').value === 'insert';
@@ -198,12 +394,15 @@ function bindEvents() {
 function init() {
   $('doc-id').value = state.docId;
   $('draft-text').value = store.get('draftText', '');
-  $('patch-id').value = newPatchId();
+  $('patch-id').value = newId('patch');
+  $('prot-id').value = newId('sel');
   $('patch-base').value =
     state.baseRevision === null ? '0' : String(state.baseRevision);
   bindEvents();
   renderLocal();
+  renderProtection();
   refreshApproved();
+  recoverLatestProtection();
   refreshHealth();
   setInterval(refreshHealth, 10000);
 }
